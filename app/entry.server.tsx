@@ -138,3 +138,16 @@ function handleBrowserRequest(
     setTimeout(abort, ABORT_DELAY);
   });
 }
+
+function handleError(
+  error: Error,
+  request: Request,
+  responseStatusCode: number,
+  responseHeaders: Headers
+) {
+  console.error(error);
+  return new Response("An error occurred", {
+    status: 500,
+    headers: responseHeaders,
+  });
+}
