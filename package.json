@@ -11,12 +11,18 @@
     "typecheck": "tsc"
   },
   "dependencies": {
+    "@mantine/core": "^7.8.0",
+    "@mantine/hooks": "^7.8.0",
     "@react-google-maps/api": "^2.19.3",
     "@remix-run/node": "^2.8.1",
     "@remix-run/react": "^2.8.1",
     "@remix-run/serve": "^2.8.1",
-    "@tailwindcss/vite": "next",
+    "@tabler/icons-react": "^3.2.0",
+    "@tailwindcss/postcss": "next",
     "isbot": "^4.1.0",
+    "postcss": "^8.4.38",
+    "postcss-preset-mantine": "^1.14.4",
+    "postcss-simple-vars": "^7.0.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tailwindcss": "next"

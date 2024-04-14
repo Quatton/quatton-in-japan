@@ -16,11 +16,12 @@ export function loader() {
 
 export default function Index() {
   const { googleMapsApiKey } = useLoaderData<typeof loader>();
-
   const { isLoaded } = useJsApiLoader({
     id: "google-map-script",
     googleMapsApiKey,
     region: "JP",
+    mapIds: ["f6a502f44d6b0b6e"],
+    libraries: ["marker"],
   });
 
   if (!isLoaded) {
