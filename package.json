@@ -11,12 +11,15 @@
     "typecheck": "tsc"
   },
   "dependencies": {
+    "@react-google-maps/api": "^2.19.3",
     "@remix-run/node": "^2.8.1",
     "@remix-run/react": "^2.8.1",
     "@remix-run/serve": "^2.8.1",
+    "@tailwindcss/vite": "next",
     "isbot": "^4.1.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "tailwindcss": "next"
   },
   "devDependencies": {
     "@remix-run/dev": "^2.8.1",
