@@ -1,19 +1,26 @@
 import { Button } from "@mantine/core";
-import { useLocalStorage, useMove } from "@mantine/hooks";
-import { IconFlag, IconMapPin2 } from "@tabler/icons-react";
+import { useLocalStorage } from "@mantine/hooks";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+const ZOOM_LEVEL = 14;
+const TOKYO = { lat: 35.709, lng: 139.732 };
+
 export function StreetView() {
-  const [map, setMap] = useState<google.maps.Map>();
+  const map = useRef<google.maps.Map>();
+  const marker = useRef<google.maps.marker.AdvancedMarkerElement>();
+  const actualMarker = useRef<google.maps.marker.AdvancedMarkerElement>();
+  const line = useRef<google.maps.Polyline>();
+
+  const distanceMarker = useRef<google.maps.marker.AdvancedMarkerElement>();
+
+  const [completed, setCompleted] = useState(false);
+  const [message, setMessage] = useState("");
+
   const [mapPinPosition, setMapPinPosition] = useState<{
     lat: number;
     lng: number;
   }>();
-  const [marker, setMarker] =
-    useState<google.maps.marker.AdvancedMarkerElement>();
 
-  const [completed, setCompleted] = useState(false);
-  const [message, setMessage] = useState("");
   const [currentPosition, setCurrentPosition] = useLocalStorage<{
     lat: number;
     lng: number;
@@ -28,7 +35,7 @@ export function StreetView() {
         position: { lat, lng },
         addressControl: false,
         showRoadLabels: false,
-      }
+      },
     );
   };
 
@@ -57,7 +64,21 @@ export function StreetView() {
   const handleRandom = useCallback(async () => {
     setCompleted(false);
     setGuessMode(false);
+    if (actualMarker.current) {
+      actualMarker.current.map = null;
+    }
+    line.current?.setMap(null);
+    if (distanceMarker.current) {
+      distanceMarker.current.map = null;
+    }
+
+    map.current?.setCenter(TOKYO);
+    map.current?.setZoom(ZOOM_LEVEL);
     setMapPinPosition(undefined);
+    if (marker.current) {
+      marker.current.position = TOKYO;
+    }
+
     let data = await getValidCoords();
 
     if (!data) {
@@ -94,66 +115,60 @@ export function StreetView() {
 
   const handleMapOnClick = useCallback(
     (e: google.maps.KmlMouseEvent) => {
-      if (!guessMode || !e.latLng || !map) {
+      if (!guessMode || !e.latLng || !map.current) {
         return;
       }
 
       const position = e.latLng.toJSON();
       setMapPinPosition(position);
 
-      if (marker) {
-        marker.map = null;
+      if (marker.current) {
+        marker.current.position = position;
       }
-
-      const _marker = new google.maps.marker.AdvancedMarkerElement({
-        map,
-        position,
-        gmpDraggable: true,
-      });
-
-      setMarker(_marker);
     },
-    [guessMode, map, marker]
+    [guessMode],
   );
 
   useEffect(() => {
-    const map = new google.maps.Map(
+    map.current = new google.maps.Map(
       document.getElementById("map") as HTMLElement,
       {
-        center: { lat: 35.709, lng: 139.732 },
-        zoom: 12,
+        center: TOKYO,
+        zoom: ZOOM_LEVEL,
         mapId: "f6a502f44d6b0b6e",
         disableDefaultUI: true,
         clickableIcons: false,
-      }
+      },
     );
 
-    map.addListener("click", handleMapOnClick);
-    setMap(map);
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function startGuessing() {
-    setGuessMode(true);
-
-    if (marker) {
-      marker.map = null;
-    }
-
-    const _marker = new google.maps.marker.AdvancedMarkerElement({
-      map,
-      position: mapPinPosition ?? { lat: 35.709, lng: 139.732 },
+    marker.current = new google.maps.marker.AdvancedMarkerElement({
+      map: map.current,
+      position: TOKYO,
       gmpDraggable: true,
     });
 
-    setMarker(_marker);
+    marker.current.addListener("dragend", markerDragEnd);
+
+    return () => {
+      marker.current?.removeEventListener("dragend", markerDragEnd);
+    };
+  }, []);
+
+  useEffect(() => {
+    map.current?.addListener("click", handleMapOnClick);
+  }, [handleMapOnClick]);
+
+  async function startGuessing() {
+    setGuessMode(true);
   }
 
-  const markerDragEnd = useCallback(() => {
-    const position = marker?.position as google.maps.LatLngLiteral;
+  const markerDragEnd = () => {
+    if (!marker.current) {
+      return;
+    }
+    const position = marker.current.position as google.maps.LatLngLiteral;
     setMapPinPosition({ lat: position.lat, lng: position.lng });
-  }, [marker]);
+  };
 
   function showGuessResult() {
     if (completed || !mapPinPosition) {
@@ -162,8 +177,8 @@ export function StreetView() {
 
     setCompleted(true);
 
-    const marker = new google.maps.marker.AdvancedMarkerElement({
-      map,
+    actualMarker.current = new google.maps.marker.AdvancedMarkerElement({
+      map: map.current,
       position: currentPosition,
       title: "Actual location",
       content: new google.maps.marker.PinElement({
@@ -172,22 +187,59 @@ export function StreetView() {
       }).element,
     });
 
-    const linePath = new google.maps.Polyline({
+    line.current = new google.maps.Polyline({
       path: [currentPosition, mapPinPosition!],
       geodesic: true,
       strokeColor: "#FF0000",
       strokeOpacity: 1.0,
       strokeWeight: 2,
-      map,
+      map: map.current,
+    });
+
+    // Calculate distance
+
+    const distance = google.maps.geometry.spherical.computeDistanceBetween(
+      new google.maps.LatLng(currentPosition),
+      new google.maps.LatLng(mapPinPosition),
+    );
+
+    const textDOM = document.createElement("div");
+    textDOM.appendChild(
+      document.createTextNode(`Distance: ${Math.floor(distance)}m`),
+    );
+
+    textDOM.classList.add("distance-marker");
+
+    const textPin = new google.maps.marker.PinElement({
+      glyph: textDOM,
+      // calculate scale from distance
+      scale: Math.min(1, distance / 1000),
+    });
+
+    distanceMarker.current = new google.maps.marker.AdvancedMarkerElement({
+      map: map.current,
+      position: {
+        lat: (currentPosition.lat + mapPinPosition.lat) / 2,
+        lng: (currentPosition.lng + mapPinPosition.lng) / 2,
+      },
+      title: `Distance: ${distance.toFixed(2)}m`,
+      content: textPin.element,
+    });
+
+    // Display distance
+
+    map.current?.setCenter({
+      lat: (currentPosition.lat + mapPinPosition.lat) / 2,
+      lng: (currentPosition.lng + mapPinPosition.lng) / 2,
+    });
+
+    map.current?.panToBounds({
+      north: Math.max(currentPosition.lat, mapPinPosition.lat),
+      south: Math.min(currentPosition.lat, mapPinPosition.lat),
+      east: Math.max(currentPosition.lng, mapPinPosition.lng),
+      west: Math.min(currentPosition.lng, mapPinPosition.lng),
     });
   }
-
-  useEffect(() => {
-    marker?.addListener("dragend", markerDragEnd);
-    return () => {
-      marker?.removeEventListener("dragend", markerDragEnd);
-    };
-  }, [marker, markerDragEnd]);
 
   return (
     <div className="w-dvw h-dvh relative" id="pano">
