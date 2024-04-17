@@ -1,15 +1,26 @@
 import { Button } from "@mantine/core";
-import { useLocalStorage } from "@mantine/hooks";
+import { useInterval, useLocalStorage } from "@mantine/hooks";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const ZOOM_LEVEL = 14;
 const TOKYO = { lat: 35.709, lng: 139.732 };
+const TIME_LIMIT = 120;
 
 export function StreetView() {
   const map = useRef<google.maps.Map>();
   const marker = useRef<google.maps.marker.AdvancedMarkerElement>();
   const actualMarker = useRef<google.maps.marker.AdvancedMarkerElement>();
   const line = useRef<google.maps.Polyline>();
+
+  const [time, setTime] = useState(TIME_LIMIT);
+
+  const { start, stop } = useInterval(() => {
+    setTime((time) => time - 1);
+    if (time == 0) {
+      setMapPinPosition(TOKYO);
+      showGuessResult();
+    }
+  }, 1000);
 
   const distanceMarker = useRef<google.maps.marker.AdvancedMarkerElement>();
 
@@ -97,6 +108,9 @@ export function StreetView() {
   };
 
   const handleRandom = useCallback(async () => {
+    stop();
+    setTime(TIME_LIMIT);
+
     setCompleted(false);
     setGuessMode(false);
     if (actualMarker.current) {
@@ -139,7 +153,9 @@ export function StreetView() {
     const { lat, lng } = data;
 
     setCurrentPosition({ lat, lng });
-  }, [setCurrentPosition]);
+
+    start();
+  }, [setCurrentPosition, stop, start]);
 
   const [guessMode, setGuessMode] = useState(false);
 
@@ -212,6 +228,7 @@ export function StreetView() {
     }
 
     setCompleted(true);
+    stop();
 
     actualMarker.current = new google.maps.marker.AdvancedMarkerElement({
       map: map.current,
@@ -289,8 +306,18 @@ export function StreetView() {
     // end zoom to fit
   }
 
+  function parseTime(time: number) {
+    const minutes = Math.floor(time / 60);
+    const seconds = time % 60;
+    return `${minutes}:${seconds < 10 ? `0${seconds}` : seconds}`;
+  }
+
   return (
     <div className="w-dvw h-dvh relative" id="pano">
+      <div className="absolute top-0 left-0 z-20 text-black p-4 bg-white bg-opacity-50 text-3xl min-w-48 text-center">
+        {parseTime(time)}
+      </div>
+
       <div className="absolute bottom-0 left-0 z-20 p-4 bg-white bg-opacity-50">
         <p>{message}</p>
         <div className="flex items-center gap-2">
