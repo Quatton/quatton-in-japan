@@ -40,6 +40,10 @@ export function StreetView() {
   };
 
   const getValidCoords = async () => {
+    if (!map.current) {
+      return undefined;
+    }
+
     const left = 139.612872;
     const top = 35.779186;
 
@@ -50,13 +54,44 @@ export function StreetView() {
     const lng = left + Math.random() * (right - left);
 
     const sv = new google.maps.StreetViewService();
+    const place = new google.maps.places.PlacesService(map.current);
 
-    const { data } = await sv.getPanorama({
-      location: { lat, lng },
+    // find nearest station
+
+    const stations = await new Promise<google.maps.places.PlaceResult[]>(
+      (res) => {
+        place.nearbySearch(
+          {
+            location: { lat, lng },
+            radius: 500,
+            type: "train_station",
+          },
+          (results, status) => {
+            if (
+              status === google.maps.places.PlacesServiceStatus.OK &&
+              results != null
+            ) {
+              res(results);
+            } else {
+              res([]);
+            }
+          },
+        );
+      },
+    );
+
+    if (stations.length === 0 || stations[0].geometry === undefined) {
+      return undefined;
+    }
+
+    const {
+      data: { location },
+    } = await sv.getPanorama({
+      location: stations[0].geometry.location,
       radius: 500,
     });
 
-    if (data.location?.latLng) {
+    if (location?.latLng) {
       return { lat, lng };
     }
   };
@@ -89,6 +124,7 @@ export function StreetView() {
         const _data = await getValidCoords();
         if (_data) {
           data = _data;
+          setMessage("");
           break;
         }
         retries--;
@@ -171,7 +207,7 @@ export function StreetView() {
   };
 
   function showGuessResult() {
-    if (completed || !mapPinPosition) {
+    if (completed || !mapPinPosition || !map.current) {
       return;
     }
 
@@ -228,17 +264,29 @@ export function StreetView() {
 
     // Display distance
 
-    map.current?.setCenter({
+    map.current.setCenter({
       lat: (currentPosition.lat + mapPinPosition.lat) / 2,
       lng: (currentPosition.lng + mapPinPosition.lng) / 2,
     });
 
-    map.current?.panToBounds({
+    map.current.panToBounds({
       north: Math.max(currentPosition.lat, mapPinPosition.lat),
       south: Math.min(currentPosition.lat, mapPinPosition.lat),
       east: Math.max(currentPosition.lng, mapPinPosition.lng),
       west: Math.min(currentPosition.lng, mapPinPosition.lng),
     });
+
+    // zoom to fit
+    map.current.fitBounds(
+      {
+        north: Math.max(currentPosition.lat, mapPinPosition.lat),
+        south: Math.min(currentPosition.lat, mapPinPosition.lat),
+        east: Math.max(currentPosition.lng, mapPinPosition.lng),
+        west: Math.min(currentPosition.lng, mapPinPosition.lng),
+      },
+      24,
+    );
+    // end zoom to fit
   }
 
   return (

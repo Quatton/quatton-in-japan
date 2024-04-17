@@ -21,7 +21,7 @@ export default function Index() {
     googleMapsApiKey,
     region: "JP",
     mapIds: ["f6a502f44d6b0b6e"],
-    libraries: ["marker"],
+    libraries: ["marker", "places"],
   });
 
   if (!isLoaded) {
